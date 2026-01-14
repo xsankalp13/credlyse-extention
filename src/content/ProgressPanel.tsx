@@ -1,9 +1,39 @@
 import React, { useState, useEffect } from 'react';
+import type { TrackerState } from './tracking';
+
+/**
+ * Format seconds to MM:SS
+ */
+function formatTime(seconds: number): string {
+    if (!seconds || isNaN(seconds)) return '00:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
 
 export function ProgressPanel(): React.ReactElement {
-    // Static progress value for UI - logic will be added later
-    const progress = 35;
+    const [progress, setProgress] = useState(0);
+    const [watched, setWatched] = useState(0);
+    const [remaining, setRemaining] = useState(0);
+    const [isComplete, setIsComplete] = useState(false);
     const [isPlaylist, setIsPlaylist] = useState(false);
+
+    // Listen for progress updates from VideoTracker
+    useEffect(() => {
+        const handleProgressUpdate = (e: CustomEvent<TrackerState>) => {
+            const state = e.detail;
+            setProgress(Math.round(state.percentComplete));
+            setWatched(state.totalWatched);
+            setRemaining(Math.max(0, state.duration - state.totalWatched));
+            setIsComplete(state.isComplete);
+        };
+
+        window.addEventListener('progress-updated', handleProgressUpdate as EventListener);
+
+        return () => {
+            window.removeEventListener('progress-updated', handleProgressUpdate as EventListener);
+        };
+    }, []);
 
     // Detect if we're watching a playlist
     useEffect(() => {
@@ -14,7 +44,6 @@ export function ProgressPanel(): React.ReactElement {
 
         checkPlaylist();
 
-        // Listen for URL changes
         const handleUrlChange = () => {
             setTimeout(checkPlaylist, 100);
         };
@@ -26,8 +55,22 @@ export function ProgressPanel(): React.ReactElement {
         };
     }, []);
 
+    const getMessage = () => {
+        if (isComplete) {
+            return '🎉 Completed! Great job staying focused!';
+        } else if (progress >= 75) {
+            return 'Almost there! Keep going! 💪';
+        } else if (progress >= 50) {
+            return 'Halfway done! You\'re doing great! 🚀';
+        } else if (progress >= 25) {
+            return 'Good progress! Stay focused! 📚';
+        } else {
+            return 'Stay focused! You\'re making great progress. 🎯';
+        }
+    };
+
     return (
-        <div className={`study-progress-panel ${isPlaylist ? 'playlist-mode' : ''}`}>
+        <div className={`study-progress-panel ${isPlaylist ? 'playlist-mode' : ''} ${isComplete ? 'completed' : ''}`}>
             <div className="study-progress-header">
                 <span className="study-progress-icon">
                     <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
@@ -35,6 +78,12 @@ export function ProgressPanel(): React.ReactElement {
                     </svg>
                 </span>
                 <h3 className="study-progress-title">Study Progress</h3>
+                {/* Completion tick indicator */}
+                <span className={`study-completion-tick ${isComplete ? 'completed' : ''}`}>
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                    </svg>
+                </span>
             </div>
 
             <div className="study-progress-content">
@@ -52,18 +101,18 @@ export function ProgressPanel(): React.ReactElement {
 
                 <div className="study-progress-time">
                     <div className="study-progress-time-item">
-                        <span className="study-progress-time-value">22:15</span>
+                        <span className="study-progress-time-value">{formatTime(watched)}</span>
                         <span className="study-progress-time-label">Watched</span>
                     </div>
                     <div className="study-progress-time-item">
-                        <span className="study-progress-time-value">41:05</span>
+                        <span className="study-progress-time-value">{formatTime(remaining)}</span>
                         <span className="study-progress-time-label">Remaining</span>
                     </div>
                 </div>
             </div>
 
             <div className="study-progress-message">
-                <p>Stay focused! You're making great progress. 🎯</p>
+                <p>{getMessage()}</p>
             </div>
         </div>
     );

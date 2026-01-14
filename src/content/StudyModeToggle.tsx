@@ -36,6 +36,11 @@ export function StudyModeToggle(): React.ReactElement {
             body.classList.remove('youtube-study-mode-active');
         }
 
+        // Dispatch custom event for other components to react
+        window.dispatchEvent(new CustomEvent('study-mode-toggled', {
+            detail: { isEnabled }
+        }));
+
         // Save state to Chrome storage (with safety check)
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
             chrome.storage.local.set({ studyModeEnabled: isEnabled });

@@ -5,6 +5,7 @@ import { ProgressPanel } from './ProgressPanel';
 import { ProgressWheel } from './ProgressWheel';
 import { PlaylistCompletedCounter } from './PlaylistCompletedCounter';
 import { QuizPanel } from './QuizPanel';
+import { VideoTracker, getVideoIdFromUrl } from './tracking';
 import './styles.css';
 
 // Container IDs
@@ -19,6 +20,47 @@ let progressPanelRoot: Root | null = null;
 let progressWheelRoot: Root | null = null;
 let playlistCounterRoot: Root | null = null;
 let quizPanelRoot: Root | null = null;
+
+// Video tracker instance
+let videoTracker: VideoTracker | null = null;
+let currentVideoId: string | null = null;
+
+// Initialize or reinitialize the video tracker
+function initializeTracker(): void {
+    const videoId = getVideoIdFromUrl();
+    
+    // Only initialize if study mode is active
+    if (!document.body.classList.contains('youtube-study-mode-active')) {
+        return;
+    }
+
+    // Skip if same video
+    if (videoId === currentVideoId && videoTracker) {
+        return;
+    }
+
+    // Destroy existing tracker if video changed
+    if (videoTracker && videoId !== currentVideoId) {
+        videoTracker.destroy();
+        videoTracker = null;
+    }
+
+    // Create new tracker
+    if (videoId && !videoTracker) {
+        currentVideoId = videoId;
+        videoTracker = new VideoTracker(videoId);
+        console.log(`[Credlyse] Started tracking video: ${videoId}`);
+    }
+}
+
+// Destroy the video tracker
+function destroyTracker(): void {
+    if (videoTracker) {
+        videoTracker.destroy();
+        videoTracker = null;
+        currentVideoId = null;
+    }
+}
 
 // Check if we're on a video watch page
 function isVideoPage(): boolean {
@@ -112,12 +154,15 @@ function injectProgressPanel(): void {
         const sidebar = document.querySelector('#secondary-inner') ||
             document.querySelector('#secondary') ||
             document.querySelector('ytd-playlist-panel-renderer');
+
         if (sidebar) {
             sidebar.appendChild(container);
             container.classList.add('playlist-mode');
         } else {
-            // Fallback to body if sidebar not found
-            document.body.appendChild(container);
+            // If we are on a playlist page but can't find the sidebar, retry
+            // This prevents the panel from falling back to fixed positioning and overlapping
+            setTimeout(injectProgressPanel, 500);
+            return;
         }
     } else {
         // For single video, append to body with fixed positioning
@@ -305,25 +350,55 @@ function handleNavigation(): void {
     const originalPushState = history.pushState;
     const originalReplaceState = history.replaceState;
 
+    const onNavigate = () => {
+        setTimeout(() => {
+            injectToggle();
+            // Reinitialize tracker for new video (if study mode is active)
+            initializeTracker();
+        }, 100);
+    };
+
     history.pushState = function (...args) {
         originalPushState.apply(this, args);
-        setTimeout(injectToggle, 100);
+        onNavigate();
     };
 
     history.replaceState = function (...args) {
         originalReplaceState.apply(this, args);
-        setTimeout(injectToggle, 100);
+        onNavigate();
     };
 
-    window.addEventListener('popstate', () => {
-        setTimeout(injectToggle, 100);
-    });
+    window.addEventListener('popstate', onNavigate);
 }
 
 // Initialize
 function init(): void {
     handleNavigation();
     injectToggle();
+
+    // Listen for study mode toggle
+    window.addEventListener('study-mode-toggled', ((e: CustomEvent) => {
+        if (e.detail && e.detail.isEnabled) {
+            // Give a small delay to ensure DOM updates
+            setTimeout(() => {
+                injectQuizButtons();
+                setupPlaylistObserver();
+                initializeTracker(); // Start video tracking
+            }, 500);
+        } else {
+            disconnectPlaylistObserver();
+            destroyTracker(); // Stop video tracking
+        }
+    }) as EventListener);
+
+    // Initial check
+    if (document.body.classList.contains('youtube-study-mode-active')) {
+        setTimeout(() => {
+            injectQuizButtons();
+            setupPlaylistObserver();
+            initializeTracker(); // Start video tracking
+        }, 1000);
+    }
 
     const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
@@ -341,6 +416,46 @@ function init(): void {
         childList: true,
         subtree: true,
     });
+}
+
+// Playlist observer to handle infinite scroll/dynamic loading
+let playlistObserver: MutationObserver | null = null;
+
+function setupPlaylistObserver(): void {
+    if (playlistObserver) return; // Already observing
+
+    const playlistItemsContainer = document.querySelector('ytd-playlist-panel-renderer #items');
+    if (!playlistItemsContainer) {
+        // Retry if container not found yet
+        setTimeout(setupPlaylistObserver, 1000);
+        return;
+    }
+
+    playlistObserver = new MutationObserver((mutations) => {
+        let shouldInject = false;
+        for (const mutation of mutations) {
+            if (mutation.addedNodes.length > 0) {
+                shouldInject = true;
+                break;
+            }
+        }
+
+        if (shouldInject) {
+            injectQuizButtons();
+        }
+    });
+
+    playlistObserver.observe(playlistItemsContainer, {
+        childList: true,
+        subtree: true
+    });
+}
+
+function disconnectPlaylistObserver(): void {
+    if (playlistObserver) {
+        playlistObserver.disconnect();
+        playlistObserver = null;
+    }
 }
 
 // Wait for DOM to be ready

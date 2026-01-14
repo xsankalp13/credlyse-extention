@@ -188,6 +188,39 @@ html[dark] .study-mode-toggle.active .study-mode-switch {
   color: #f1f1f1;
   margin: 0;
   font-family: 'Roboto', 'Arial', sans-serif;
+  flex: 1;
+}
+
+/* Completion tick indicator */
+.study-completion-tick {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #3d3d3d;
+  color: #666;
+  transition: all 0.3s ease;
+  margin-left: auto;
+}
+
+.study-completion-tick.completed {
+  background: #FF0034;
+  color: white;
+  animation: tickPop 0.4s ease;
+}
+
+@keyframes tickPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .study-progress-content {
