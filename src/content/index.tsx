@@ -112,12 +112,15 @@ function injectProgressPanel(): void {
         const sidebar = document.querySelector('#secondary-inner') ||
             document.querySelector('#secondary') ||
             document.querySelector('ytd-playlist-panel-renderer');
+
         if (sidebar) {
             sidebar.appendChild(container);
             container.classList.add('playlist-mode');
         } else {
-            // Fallback to body if sidebar not found
-            document.body.appendChild(container);
+            // If we are on a playlist page but can't find the sidebar, retry
+            // This prevents the panel from falling back to fixed positioning and overlapping
+            setTimeout(injectProgressPanel, 500);
+            return;
         }
     } else {
         // For single video, append to body with fixed positioning
@@ -325,6 +328,27 @@ function init(): void {
     handleNavigation();
     injectToggle();
 
+    // Listen for study mode toggle
+    window.addEventListener('study-mode-toggled', ((e: CustomEvent) => {
+        if (e.detail && e.detail.isEnabled) {
+            // Give a small delay to ensure DOM updates
+            setTimeout(() => {
+                injectQuizButtons();
+                setupPlaylistObserver();
+            }, 500);
+        } else {
+            disconnectPlaylistObserver();
+        }
+    }) as EventListener);
+
+    // Initial check
+    if (document.body.classList.contains('youtube-study-mode-active')) {
+        setTimeout(() => {
+            injectQuizButtons();
+            setupPlaylistObserver();
+        }, 1000);
+    }
+
     const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
             if (mutation.addedNodes.length > 0) {
@@ -341,6 +365,46 @@ function init(): void {
         childList: true,
         subtree: true,
     });
+}
+
+// Playlist observer to handle infinite scroll/dynamic loading
+let playlistObserver: MutationObserver | null = null;
+
+function setupPlaylistObserver(): void {
+    if (playlistObserver) return; // Already observing
+
+    const playlistItemsContainer = document.querySelector('ytd-playlist-panel-renderer #items');
+    if (!playlistItemsContainer) {
+        // Retry if container not found yet
+        setTimeout(setupPlaylistObserver, 1000);
+        return;
+    }
+
+    playlistObserver = new MutationObserver((mutations) => {
+        let shouldInject = false;
+        for (const mutation of mutations) {
+            if (mutation.addedNodes.length > 0) {
+                shouldInject = true;
+                break;
+            }
+        }
+
+        if (shouldInject) {
+            injectQuizButtons();
+        }
+    });
+
+    playlistObserver.observe(playlistItemsContainer, {
+        childList: true,
+        subtree: true
+    });
+}
+
+function disconnectPlaylistObserver(): void {
+    if (playlistObserver) {
+        playlistObserver.disconnect();
+        playlistObserver = null;
+    }
 }
 
 // Wait for DOM to be ready
