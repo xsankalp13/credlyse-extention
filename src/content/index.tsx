@@ -4,6 +4,7 @@ import { StudyModeToggle } from './StudyModeToggle';
 import { ProgressPanel } from './ProgressPanel';
 import { ProgressWheel } from './ProgressWheel';
 import { PlaylistCompletedCounter } from './PlaylistCompletedCounter';
+import { QuizPanel } from './QuizPanel';
 import './styles.css';
 
 // Container IDs
@@ -11,11 +12,13 @@ const CONTAINER_ID = 'youtube-study-mode-container';
 const PROGRESS_CONTAINER_ID = 'youtube-study-progress-container';
 const PROGRESS_WHEEL_ID = 'youtube-study-progress-wheel';
 const PLAYLIST_COUNTER_ID = 'youtube-study-playlist-counter';
+const QUIZ_CONTAINER_ID = 'youtube-study-quiz-container';
 
 // Store for roots
 let progressPanelRoot: Root | null = null;
 let progressWheelRoot: Root | null = null;
 let playlistCounterRoot: Root | null = null;
+let quizPanelRoot: Root | null = null;
 
 // Check if we're on a video watch page
 function isVideoPage(): boolean {
@@ -182,6 +185,67 @@ function removePlaylistCounter(): void {
     }
 }
 
+// Show quiz panel
+function showQuizPanel(videoTitle: string): void {
+    // Remove existing if any
+    removeQuizPanel();
+
+    const container = document.createElement('div');
+    container.id = QUIZ_CONTAINER_ID;
+    document.body.appendChild(container);
+
+    quizPanelRoot = createRoot(container);
+    quizPanelRoot.render(
+        <React.StrictMode>
+            <QuizPanel videoTitle={videoTitle} onClose={removeQuizPanel} />
+        </React.StrictMode>
+    );
+}
+
+// Remove quiz panel
+function removeQuizPanel(): void {
+    const container = document.getElementById(QUIZ_CONTAINER_ID);
+    if (container) {
+        if (quizPanelRoot) {
+            quizPanelRoot.unmount();
+            quizPanelRoot = null;
+        }
+        container.remove();
+    }
+}
+
+// Inject quiz buttons into playlist items
+function injectQuizButtons(): void {
+    if (!isPlaylistPage()) return;
+    if (!document.body.classList.contains('youtube-study-mode-active')) return;
+
+    const playlistItems = document.querySelectorAll('ytd-playlist-panel-video-renderer');
+
+    playlistItems.forEach((item) => {
+        // Skip if already has quiz button
+        if (item.querySelector('.study-quiz-btn')) return;
+
+        const container = item.querySelector('#container');
+        if (!container) return;
+
+        // Get video title
+        const titleEl = item.querySelector('#video-title');
+        const videoTitle = titleEl?.textContent?.trim() || 'Video';
+
+        // Create quiz button
+        const quizBtn = document.createElement('button');
+        quizBtn.className = 'study-quiz-btn';
+        quizBtn.innerHTML = '<span class="study-quiz-btn-icon">📝</span> Quiz';
+        quizBtn.onclick = (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            showQuizPanel(videoTitle);
+        };
+
+        container.appendChild(quizBtn);
+    });
+}
+
 // Remove progress panel
 function removeProgressPanel(): void {
     const container = document.getElementById(PROGRESS_CONTAINER_ID);
@@ -231,6 +295,9 @@ function injectToggle(): void {
     // Also inject progress panel and wheel
     injectProgressPanel();
     injectProgressWheel();
+
+    // Inject quiz buttons into playlist items (with delay to ensure playlist loads)
+    setTimeout(injectQuizButtons, 1000);
 }
 
 // Handle YouTube's SPA navigation
