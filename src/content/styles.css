@@ -1,0 +1,610 @@
+/* ============================================
+   YouTube Study Mode - Content Script Styles
+   ============================================ */
+
+/* Container positioning - in actions bar */
+#youtube-study-mode-container {
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+/* Toggle wrapper */
+.study-mode-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+/* Main toggle button - YouTube native style */
+.study-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 18px;
+  background: transparent;
+  color: var(--yt-spec-text-secondary, #606060);
+  font-family: 'Roboto', 'Arial', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.study-mode-toggle:hover {
+  background: var(--yt-spec-badge-chip-background, rgba(0, 0, 0, 0.05));
+}
+
+/* Dark mode support */
+html[dark] .study-mode-toggle {
+  color: var(--yt-spec-text-secondary, #aaa);
+}
+
+html[dark] .study-mode-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Label */
+.study-mode-label {
+  user-select: none;
+}
+
+.study-mode-toggle.active .study-mode-label {
+  color: var(--yt-spec-text-primary, #0f0f0f);
+}
+
+html[dark] .study-mode-toggle.active .study-mode-label {
+  color: var(--yt-spec-text-primary, #f1f1f1);
+}
+
+/* Switch toggle */
+.study-mode-switch {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  background: var(--yt-spec-badge-chip-background, #ccc);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.study-mode-toggle.active .study-mode-switch {
+  background: #FF0034;
+}
+
+html[dark] .study-mode-toggle.active .study-mode-switch {
+  background: #FF0034;
+}
+
+.study-mode-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.study-mode-toggle.active .study-mode-switch-thumb {
+  transform: translateX(16px);
+}
+
+/* ============================================
+   Progress Wheel Styles (Navbar)
+   ============================================ */
+
+#youtube-study-progress-wheel {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+}
+
+.youtube-study-mode-active #youtube-study-progress-wheel {
+  display: flex;
+}
+
+.progress-wheel-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  border-radius: 50%;
+  transition: background 0.2s ease;
+}
+
+.progress-wheel-container:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.progress-wheel-svg {
+  transform: rotate(-90deg);
+}
+
+.progress-wheel-bg {
+  stroke: #3d3d3d;
+}
+
+.progress-wheel-progress {
+  stroke: #FF0034;
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+.progress-wheel-text {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 600;
+  color: #f1f1f1;
+  font-family: 'Roboto', 'Arial', sans-serif;
+}
+
+/* Hide Create button when Study Mode is active */
+.youtube-study-mode-active ytd-topbar-menu-button-renderer[button-renderer] {
+  display: none !important;
+}
+
+/* ============================================
+   Progress Panel Styles - YouTube Theme
+   ============================================ */
+
+.study-progress-panel {
+  background: #0f0f0f;
+  border-radius: 6px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.study-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.study-progress-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: #FF0034;
+  border-radius: 8px;
+  color: white;
+}
+
+.study-progress-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #f1f1f1;
+  margin: 0;
+  font-family: 'Roboto', 'Arial', sans-serif;
+}
+
+.study-progress-content {
+  margin-bottom: 16px;
+}
+
+.study-progress-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.study-progress-percentage {
+  font-size: 32px;
+  font-weight: 500;
+  color: #FF0034;
+  font-family: 'Roboto', 'Arial', sans-serif;
+}
+
+.study-progress-label {
+  font-size: 14px;
+  color: #aaaaaa;
+  font-weight: 400;
+}
+
+.study-progress-bar-container {
+  width: 100%;
+  height: 4px;
+  background: #3d3d3d;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.study-progress-bar-fill {
+  height: 100%;
+  background: #FF0034;
+  border-radius: 2px;
+  transition: width 0.5s ease;
+  position: relative;
+}
+
+.study-progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.study-progress-time {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.study-progress-time-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  padding: 12px;
+  background: #272727;
+  border-radius: 8px;
+}
+
+.study-progress-time-value {
+  font-size: 18px;
+  font-weight: 500;
+  color: #f1f1f1;
+  font-family: 'Roboto', 'Arial', sans-serif;
+}
+
+.study-progress-time-label {
+  font-size: 11px;
+  color: #aaaaaa;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.study-progress-message {
+  padding: 12px;
+  background: #272727;
+  border-radius: 8px;
+  border-left: 3px solid #FF0034;
+}
+
+.study-progress-message p {
+  margin: 0;
+  font-size: 13px;
+  color: #aaaaaa;
+  line-height: 1.4;
+}
+
+/* Progress panel container - positioned in sidebar area for single videos */
+#youtube-study-progress-container {
+  display: none;
+  position: fixed;
+  top: 136px;
+  right: 24px;
+  left: calc(100% - 402px);
+  max-width: 378px;
+  z-index: 100;
+}
+
+.youtube-study-mode-active #youtube-study-progress-container {
+  display: block;
+}
+
+/* Playlist mode - panel is inside sidebar, use relative positioning */
+#youtube-study-progress-container.playlist-mode {
+  position: relative;
+  top: auto;
+  right: auto;
+  left: auto;
+  max-width: 100%;
+  margin-top: 16px;
+  padding: 0 12px;
+}
+
+.youtube-study-mode-active #youtube-study-progress-container.playlist-mode {
+  display: block;
+}
+
+/* ============================================
+   Study Mode Active - Hide Distractions
+   ============================================ */
+
+/* Keep sidebar visible but hide recommendation content inside it */
+.youtube-study-mode-active #secondary {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Hide the actual recommendation content */
+.youtube-study-mode-active #secondary #related,
+.youtube-study-mode-active #secondary ytd-watch-next-secondary-results-renderer,
+.youtube-study-mode-active #secondary ytd-compact-video-renderer,
+.youtube-study-mode-active #secondary ytd-compact-playlist-renderer,
+.youtube-study-mode-active #secondary ytd-compact-radio-renderer {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* Make sure our progress panel is visible */
+.youtube-study-mode-active #youtube-study-progress-container {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+/* Hide comments section */
+.youtube-study-mode-active #comments {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Hide end screen recommendations */
+.youtube-study-mode-active .ytp-ce-element {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Limit visible content when Study Mode is active */
+.youtube-study-mode-active ytd-app,
+.youtube-study-mode-active #page-manager {
+  max-height: 150vh !important;
+  overflow: hidden !important;
+}
+
+/* Hide everything below the video area */
+.youtube-study-mode-active ytd-watch-flexy #below {
+  max-height: 50vh !important;
+  overflow: hidden !important;
+}
+
+/* Smooth transitions */
+#secondary,
+#comments,
+#primary,
+#related {
+  transition: opacity 0.3s ease, width 0.3s ease, max-width 0.3s ease, visibility 0.3s ease;
+}
+
+/* ============================================
+   Playlist Panel Customization in Study Mode
+   ============================================ */
+
+/* Style the entire playlist panel */
+.youtube-study-mode-active ytd-playlist-panel-renderer {
+  background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Style the playlist header */
+.youtube-study-mode-active ytd-playlist-panel-renderer #header {
+  background: linear-gradient(135deg, #1a1a1a 0%, #252525 100%) !important;
+  padding: 16px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Style the playlist title */
+.youtube-study-mode-active ytd-playlist-panel-renderer #header-title {
+  color: #ffffff !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px !important;
+}
+
+/* Hide close button (X) */
+.youtube-study-mode-active ytd-playlist-panel-renderer #header button[aria-label="Close"],
+.youtube-study-mode-active ytd-playlist-panel-renderer .close-button,
+.youtube-study-mode-active ytd-playlist-panel-renderer #container>#header button {
+  display: none !important;
+}
+
+/* Hide author text and count (Krish Naik - 1/5) */
+.youtube-study-mode-active ytd-playlist-panel-renderer #byline-container,
+.youtube-study-mode-active ytd-playlist-panel-renderer .index-message-wrapper,
+.youtube-study-mode-active ytd-playlist-panel-renderer #publisher-container {
+  display: none !important;
+}
+
+/* Hide loop and shuffle buttons */
+.youtube-study-mode-active ytd-playlist-panel-renderer ytd-playlist-loop-button-renderer,
+.youtube-study-mode-active ytd-playlist-panel-renderer #playlist-action-menu tp-yt-paper-icon-button,
+.youtube-study-mode-active ytd-playlist-panel-renderer [aria-label="Loop"],
+.youtube-study-mode-active ytd-playlist-panel-renderer [aria-label="Shuffle"] {
+  display: none !important;
+}
+
+/* Hide three dots menu */
+.youtube-study-mode-active ytd-playlist-panel-renderer yt-icon-button.dropdown-trigger,
+.youtube-study-mode-active ytd-playlist-panel-renderer ytd-menu-renderer,
+.youtube-study-mode-active ytd-playlist-panel-renderer #menu {
+  display: none !important;
+}
+
+/* Hide video thumbnails in playlist */
+.youtube-study-mode-active ytd-playlist-panel-renderer ytd-thumbnail,
+.youtube-study-mode-active ytd-playlist-panel-renderer #thumbnail {
+  display: none !important;
+}
+
+/* Hide channel/author name under each video */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer #byline,
+.youtube-study-mode-active ytd-playlist-panel-video-renderer .ytd-channel-name {
+  display: none !important;
+}
+
+/* Style the video list container */
+.youtube-study-mode-active ytd-playlist-panel-renderer #items {
+  padding: 8px !important;
+}
+
+/* Add checkbox space and style the video items */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer {
+  display: flex !important;
+  align-items: center !important;
+  padding: 12px 16px !important;
+  margin: 4px 0 !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  transition: all 0.2s ease !important;
+  border-left: 3px solid transparent !important;
+}
+
+.youtube-study-mode-active ytd-playlist-panel-video-renderer:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Currently playing video highlight */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer[selected] {
+  background: rgba(255, 0, 52, 0.1) !important;
+  border-left: 3px solid #FF0034 !important;
+}
+
+/* Create checkbox using pseudo-element */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer #container::before {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: 2px solid #404040;
+  border-radius: 4px;
+  margin-right: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: not-allowed;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+/* Hover effect on checkbox */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer:hover #container::before {
+  border-color: #606060;
+  opacity: 0.8;
+}
+
+/* Checked state for completed videos (currently playing) */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer[selected] #container::before {
+  background: #FF0034;
+  border-color: #FF0034;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+  background-size: 14px;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 1;
+  box-shadow: 0 2px 8px rgba(255, 0, 52, 0.3);
+}
+
+/* Style the video title */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer #video-title {
+  color: #e0e0e0 !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.4 !important;
+}
+
+/* Style selected video title */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer[selected] #video-title {
+  color: #ffffff !important;
+  font-weight: 500 !important;
+}
+
+/* Style the video metadata area to take remaining space */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer #meta {
+  flex: 1;
+}
+
+/* Hide the index number */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer #index {
+  display: none !important;
+}
+
+/* Add a subtle animation for the playing indicator */
+.youtube-study-mode-active ytd-playlist-panel-video-renderer[selected]::after {
+  content: '▶';
+  color: #FF0034;
+  font-size: 10px;
+  margin-left: auto;
+  opacity: 0.8;
+}
+
+/* Playlist completed counter styles */
+#youtube-study-playlist-counter {
+  display: none;
+}
+
+.youtube-study-mode-active #youtube-study-playlist-counter {
+  display: block;
+  margin: 8px 0;
+}
+
+.study-playlist-counter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #f1f1f1;
+  font-family: 'Roboto', 'Arial', sans-serif;
+}
+
+.study-playlist-counter-label {
+  font-size: 13px;
+  color: #aaaaaa;
+}
+
+.study-playlist-counter-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: #FF0034;
+}
+
+/* ============================================
+   Responsive adjustments
+   ============================================ */
+
+@media (max-width: 1000px) {
+  .study-mode-label {
+    display: none;
+  }
+
+  .study-mode-toggle {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 600px) {
+  #youtube-study-mode-container {
+    margin-left: 8px;
+  }
+}
