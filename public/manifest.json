@@ -9,11 +9,26 @@
         "128": "icons/icon128.png"
     },
     "permissions": [
-        "storage"
+        "storage",
+        "alarms"
     ],
     "host_permissions": [
-        "https://www.youtube.com/*"
+        "https://www.youtube.com/*",
+        "http://localhost:8000/*",
+        "http://localhost:3001/*",
+        "http://127.0.0.1:8000/*",
+        "http://127.0.0.1:3001/*"
     ],
+    "externally_connectable": {
+        "matches": [
+            "http://localhost:3001/*",
+            "https://app.credlyse.com/*"
+        ]
+    },
+    "background": {
+        "service_worker": "service-worker.js",
+        "type": "module"
+    },
     "content_scripts": [
         {
             "matches": [
@@ -24,6 +39,16 @@
             ],
             "css": [
                 "content.css"
+            ],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": [
+                "http://localhost:3001/*",
+                "https://app.credlyse.com/*"
+            ],
+            "js": [
+                "dashboard-sync.js"
             ],
             "run_at": "document_idle"
         }

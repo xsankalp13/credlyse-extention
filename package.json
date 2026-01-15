@@ -4,8 +4,11 @@
   "description": "A Chrome extension that adds Study Mode to YouTube - hide recommendations and comments to focus on learning",
   "type": "module",
   "scripts": {
-    "dev": "vite build --watch",
-    "build": "vite build",
+    "build:content": "vite build",
+    "build:sw": "BUILD_TARGET=service-worker vite build",
+    "build:dashboard": "BUILD_TARGET=dashboard vite build",
+    "build": "npm run build:content && npm run build:sw && npm run build:dashboard",
+    "dev": "npm run build",
     "preview": "vite preview"
   },
   "dependencies": {

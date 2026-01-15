@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 
-interface Question {
-    id: number;
-    question: string;
-    options: string[];
-    correctAnswer: number;
-}
+import { getVideoQuiz, type QuizQuestion } from './auth/authService';
 
 interface QuizPanelProps {
     videoTitle: string;
+    videoId: number;
     onClose: () => void;
 }
 
-export function QuizPanel({ videoTitle, onClose }: QuizPanelProps): React.ReactElement {
+export function QuizPanel({ videoTitle, videoId, onClose }: QuizPanelProps): React.ReactElement {
+    const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+    const [loading, setLoading] = useState(true);
     const [currentQuestion, setCurrentQuestion] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
     const [showResult, setShowResult] = useState(false);
@@ -20,42 +18,32 @@ export function QuizPanel({ videoTitle, onClose }: QuizPanelProps): React.ReactE
     const [isAdExpanded, setIsAdExpanded] = useState(true);
     const [score, setScore] = useState(0);
 
-    // Demo questions - in real implementation, these would be fetched/generated
-    const questions: Question[] = [
-        {
-            id: 1,
-            question: "What is the main concept covered in this video?",
-            options: [
-                "Machine Learning basics",
-                "The topic discussed in the video",
-                "Web development",
-                "Mobile app development"
-            ],
-            correctAnswer: 1
-        },
-        {
-            id: 2,
-            question: "Which key point was emphasized the most?",
-            options: [
-                "Speed of implementation",
-                "Understanding core concepts",
-                "Using specific tools",
-                "All of the above"
-            ],
-            correctAnswer: 3
-        },
-        {
-            id: 3,
-            question: "What should you do after watching this video?",
-            options: [
-                "Just move to next video",
-                "Practice what you learned",
-                "Forget everything",
-                "Skip the playlist"
-            ],
-            correctAnswer: 1
-        }
-    ];
+    React.useEffect(() => {
+        const loadQuiz = async () => {
+            setLoading(true);
+            try {
+                // Check localStorage first
+                const stored = localStorage.getItem(`credlyse_quiz_${videoId}`);
+                if (stored) {
+                    setQuestions(JSON.parse(stored));
+                    setLoading(false);
+                    return;
+                }
+
+                const quizData = await getVideoQuiz(videoId);
+                if (quizData && quizData.questions) {
+                    setQuestions(quizData.questions);
+                    // Store in localStorage
+                    localStorage.setItem(`credlyse_quiz_${videoId}`, JSON.stringify(quizData.questions));
+                }
+            } catch (error) {
+                console.error("Failed to load quiz", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadQuiz();
+    }, [videoId]);
 
     const handleAnswerSelect = (index: number) => {
         if (showResult) return;
@@ -65,7 +53,10 @@ export function QuizPanel({ videoTitle, onClose }: QuizPanelProps): React.ReactE
     const handleSubmit = () => {
         if (selectedAnswer === null) return;
 
-        if (selectedAnswer === questions[currentQuestion].correctAnswer) {
+        const currentQ = questions[currentQuestion];
+        const selectedOption = currentQ.options[selectedAnswer];
+
+        if (selectedOption === currentQ.answer) {
             setScore(score + 1);
         }
         setShowResult(true);
@@ -79,8 +70,35 @@ export function QuizPanel({ videoTitle, onClose }: QuizPanelProps): React.ReactE
         }
     };
 
+    if (loading) {
+        return (
+            <div className="quiz-panel-overlay">
+                <div className="quiz-panel">
+                    <div className="quiz-header">
+                        <h2>Loading Quiz...</h2>
+                        <button className="quiz-close-btn" onClick={onClose}>✕</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (questions.length === 0) {
+        return (
+            <div className="quiz-panel-overlay">
+                <div className="quiz-panel">
+                    <div className="quiz-header">
+                        <h2>No quiz available</h2>
+                        <button className="quiz-close-btn" onClick={onClose}>✕</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     const isLastQuestion = currentQuestion === questions.length - 1;
-    const isCorrect = selectedAnswer === questions[currentQuestion].correctAnswer;
+    const currentQ = questions[currentQuestion];
+    const isCorrect = selectedAnswer !== null && currentQ.options[selectedAnswer] === currentQ.answer;
 
     const renderSummary = () => (
         <div className="quiz-panel">
@@ -170,14 +188,14 @@ export function QuizPanel({ videoTitle, onClose }: QuizPanelProps): React.ReactE
                     </div>
 
                     <div className="quiz-content">
-                        <h3 className="quiz-question">{questions[currentQuestion].question}</h3>
+                        <h3 className="quiz-question">{questions[currentQuestion].q}</h3>
 
                         <div className="quiz-options">
                             {questions[currentQuestion].options.map((option, index) => (
                                 <button
                                     key={index}
                                     className={`quiz-option ${selectedAnswer === index ? 'selected' : ''} ${showResult
-                                        ? index === questions[currentQuestion].correctAnswer
+                                        ? option === questions[currentQuestion].answer
                                             ? 'correct'
                                             : selectedAnswer === index
                                                 ? 'incorrect'

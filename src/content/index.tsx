@@ -6,6 +6,7 @@ import { ProgressWheel } from './ProgressWheel';
 import { PlaylistCompletedCounter } from './PlaylistCompletedCounter';
 import { QuizPanel } from './QuizPanel';
 import { VideoTracker, getVideoIdFromUrl } from './tracking';
+import { getPlaylistIdFromUrl, type PlaylistStatus } from './auth/authService';
 import './styles.css';
 
 // Container IDs
@@ -24,11 +25,12 @@ let quizPanelRoot: Root | null = null;
 // Video tracker instance
 let videoTracker: VideoTracker | null = null;
 let currentVideoId: string | null = null;
+let currentPlaylistStatus: PlaylistStatus | null = null;
 
 // Initialize or reinitialize the video tracker
 function initializeTracker(): void {
     const videoId = getVideoIdFromUrl();
-    
+
     // Only initialize if study mode is active
     if (!document.body.classList.contains('youtube-study-mode-active')) {
         return;
@@ -231,7 +233,7 @@ function removePlaylistCounter(): void {
 }
 
 // Show quiz panel
-function showQuizPanel(videoTitle: string): void {
+function showQuizPanel(videoTitle: string, videoId: number): void {
     // Remove existing if any
     removeQuizPanel();
 
@@ -242,7 +244,7 @@ function showQuizPanel(videoTitle: string): void {
     quizPanelRoot = createRoot(container);
     quizPanelRoot.render(
         <React.StrictMode>
-            <QuizPanel videoTitle={videoTitle} onClose={removeQuizPanel} />
+            <QuizPanel videoTitle={videoTitle} videoId={videoId} onClose={removeQuizPanel} />
         </React.StrictMode>
     );
 }
@@ -264,30 +266,108 @@ function injectQuizButtons(): void {
     if (!isPlaylistPage()) return;
     if (!document.body.classList.contains('youtube-study-mode-active')) return;
 
+    // Try to get status from memory or storage
+    if (!currentPlaylistStatus) {
+        const playlistId = getPlaylistIdFromUrl();
+        if (playlistId) {
+            const stored = localStorage.getItem(`credlyse_playlist_${playlistId}`);
+            if (stored) {
+                try {
+                    currentPlaylistStatus = JSON.parse(stored);
+                } catch (e) { }
+            }
+        }
+    }
+
+    // If still no status or playlist doesn't exist, remove buttons and return
+    if (!currentPlaylistStatus || !currentPlaylistStatus.playlist_exists) {
+        document.querySelectorAll('.study-quiz-btn').forEach(btn => btn.remove());
+        return;
+    }
+
     const playlistItems = document.querySelectorAll('ytd-playlist-panel-video-renderer');
+    console.log(`[Credlyse Debug] Found ${playlistItems.length} playlist items.`);
 
     playlistItems.forEach((item) => {
-        // Skip if already has quiz button
-        if (item.querySelector('.study-quiz-btn')) return;
+        let container = item.querySelector('#meta') as HTMLElement;
+        if (!container) container = item.querySelector('#container') as HTMLElement;
 
-        const container = item.querySelector('#container');
-        if (!container) return;
+        if (!container) {
+            console.log('[Credlyse Debug] No container found for item', item);
+            return;
+        }
+
+        // Extract YouTube Video ID from the wc-endpoint anchor
+        const anchor = item.querySelector('a#wc-endpoint') as HTMLAnchorElement;
+        const href = anchor?.href || anchor?.getAttribute('href');
+        let videoId: string | null = null;
+        if (href) {
+            try {
+                const url = new URL(href, window.location.origin);
+                videoId = url.searchParams.get('v');
+            } catch (e) { }
+        }
+
+        if (!videoId) {
+            console.log('[Credlyse Debug] Could not extract video ID from href:', href);
+            return;
+        }
+
+        // Find video in status
+        const videoInfo = currentPlaylistStatus?.videos.find(v => v.youtube_video_id === videoId);
+
+        console.log(`[Credlyse Debug] Video ${videoId}: Found info? ${!!videoInfo} | Has Quiz? ${videoInfo?.has_quiz}`);
+
+        // Logic: 
+        // 1. If video not in DB or no quiz -> Remove button logic (don't show)
+        // 2. If enrolled -> Enable button
+        // 3. If not enrolled -> Show disabled button (Upsell)
+
+        if (!videoInfo || !videoInfo.has_quiz) {
+            item.querySelector('.study-quiz-btn')?.remove();
+            return;
+        }
 
         // Get video title
         const titleEl = item.querySelector('#video-title');
         const videoTitle = titleEl?.textContent?.trim() || 'Video';
 
-        // Create quiz button
-        const quizBtn = document.createElement('button');
-        quizBtn.className = 'study-quiz-btn';
-        quizBtn.innerHTML = '<span class="study-quiz-btn-icon">📝</span> Quiz';
-        quizBtn.onclick = (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            showQuizPanel(videoTitle);
-        };
+        // Check if button already exists
+        let quizBtn = item.querySelector('.study-quiz-btn') as HTMLButtonElement;
 
-        container.appendChild(quizBtn);
+        if (!quizBtn) {
+            // Create quiz button
+            quizBtn = document.createElement('button');
+            quizBtn.className = 'study-quiz-btn';
+            quizBtn.innerHTML = '<span class="study-quiz-btn-icon">📝</span> Quiz';
+
+            // Append to meta to ensure it's visible in the flex layout
+            container.appendChild(quizBtn);
+            console.log(`[Credlyse Debug] Injected button for ${videoId}`);
+        }
+
+        // Update button state based on enrollment
+        const isEnrolled = currentPlaylistStatus?.is_enrolled;
+
+        if (isEnrolled) {
+            quizBtn.classList.remove('disabled');
+            quizBtn.title = "Take Quiz";
+            quizBtn.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (videoInfo) {
+                    showQuizPanel(videoTitle, videoInfo.id);
+                }
+            };
+        } else {
+            quizBtn.classList.add('disabled');
+            quizBtn.title = "Enroll to take quiz";
+            quizBtn.onclick = (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                // Optionally scroll to enroll button or show toast
+            };
+        }
     });
 }
 
@@ -390,6 +470,21 @@ function init(): void {
             destroyTracker(); // Stop video tracking
         }
     }) as EventListener);
+
+    // Listen for playlist status updates
+    window.addEventListener('playlist-status-updated', ((e: CustomEvent) => {
+        if (e.detail) {
+            currentPlaylistStatus = e.detail;
+            injectQuizButtons();
+        }
+    }) as EventListener);
+    // Listen for enrollment events
+    window.addEventListener('playlist-enrolled', (() => {
+        // Clear cached status to force refresh or just rely on status-updated
+        // But for UI responsiveness, we should re-inject if we have status
+        // status-updated is dispatched by ProgressPanel usually
+    }) as EventListener);
+
 
     // Initial check
     if (document.body.classList.contains('youtube-study-mode-active')) {
