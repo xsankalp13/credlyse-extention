@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { TrackerState } from './tracking';
 import { AuthStatus } from './auth/AuthStatus';
 import {
@@ -35,6 +35,9 @@ export function ProgressPanel(): React.ReactElement {
     const [isEnrolling, setIsEnrolling] = useState(false);
     // const [user, setUser] = useState<User | null>(null); // Unused
 
+    // Track last checked playlist to prevent redundant API calls
+    const lastCheckedPlaylistRef = useRef<string | null>(null);
+
 
     // Check auth and playlist status
     useEffect(() => {
@@ -55,7 +58,14 @@ export function ProgressPanel(): React.ReactElement {
             }
 
             // Check playlist status
+            // Optimization: Skip if we already checked this playlist ID recently
+            if (playlistId === lastCheckedPlaylistRef.current && playlistStatus) {
+                // Already have status for this playlist
+                return;
+            }
+
             const status = await checkPlaylistStatus(playlistId);
+            lastCheckedPlaylistRef.current = playlistId;
             setPlaylistStatus(status);
 
             // Dispatch status update for index.tsx to handle button injection/hiding

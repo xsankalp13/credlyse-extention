@@ -15,13 +15,14 @@
     "host_permissions": [
         "https://www.youtube.com/*",
         "http://localhost:8000/*",
-        "http://localhost:3001/*",
+        "http://localhost:3000/*",
         "http://127.0.0.1:8000/*",
-        "http://127.0.0.1:3001/*"
+        "http://127.0.0.1:3000/*"
     ],
     "externally_connectable": {
         "matches": [
-            "http://localhost:3001/*",
+            "http://localhost:3000/*",
+            "http://localhost:8000/*",
             "https://app.credlyse.com/*"
         ]
     },
@@ -44,7 +45,8 @@
         },
         {
             "matches": [
-                "http://localhost:3001/*",
+                "http://localhost:3000/*",
+                "http://localhost:8000/*",
                 "https://app.credlyse.com/*"
             ],
             "js": [

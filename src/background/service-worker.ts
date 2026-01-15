@@ -75,8 +75,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Listen for external connections from the dashboard app
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-    // Only accept messages from our dashboard app
-    if (sender.url?.startsWith('http://localhost:3001') || sender.url?.startsWith('https://app.credlyse.com')) {
+    if (sender.url?.startsWith('http://localhost:3000') ||
+        sender.url?.startsWith('https://app.credlyse.com')) {
         if (message.type === 'SET_AUTH_TOKEN') {
             handleSetAuthToken(message.token, message.user)
                 .then(() => sendResponse({ success: true }))
