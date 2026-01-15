@@ -1,8 +1,67 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { type PlaylistStatus, getPlaylistIdFromUrl } from './auth/authService';
 
 export function ProgressWheel(): React.ReactElement {
-    // Static progress value for UI - logic will be added later
-    const progress = 35;
+    const [progress, setProgress] = useState(0);
+    const [isVisible, setIsVisible] = useState(false);
+
+    const calculateProgress = (status: PlaylistStatus) => {
+        if (!status || !status.videos || status.videos.length === 0) {
+            setIsVisible(false);
+            return;
+        }
+
+        let totalItems = 0;
+        let completedItems = 0;
+
+        status.videos.forEach(video => {
+            // Count video
+            totalItems++;
+            if (video.is_watched) completedItems++;
+
+            // Count quiz if exists
+            if (video.has_quiz) {
+                totalItems++;
+                if (video.is_quiz_passed) completedItems++;
+            }
+        });
+
+        if (totalItems > 0) {
+            setProgress(Math.round((completedItems / totalItems) * 100));
+            setIsVisible(true);
+        } else {
+            setIsVisible(false);
+        }
+    };
+
+    useEffect(() => {
+        // 1. Try to load from localStorage first (immediate render)
+        const playlistId = getPlaylistIdFromUrl();
+        if (playlistId) {
+            try {
+                const cached = localStorage.getItem(`credlyse_playlist_${playlistId}`);
+                if (cached) {
+                    const status = JSON.parse(cached);
+                    calculateProgress(status);
+                }
+            } catch (e) {
+                console.warn('[ProgressWheel] Failed to load cached status', e);
+            }
+        }
+
+        // 2. Listen for updates
+        const handleStatusUpdate = (e: CustomEvent<PlaylistStatus>) => {
+            calculateProgress(e.detail);
+        };
+
+        window.addEventListener('playlist-status-updated', handleStatusUpdate as EventListener);
+
+        return () => {
+            window.removeEventListener('playlist-status-updated', handleStatusUpdate as EventListener);
+        };
+    }, []);
+
+    if (!isVisible) return <></>;
 
     // SVG circle properties
     const size = 40;

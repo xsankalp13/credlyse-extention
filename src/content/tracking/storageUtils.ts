@@ -22,6 +22,18 @@ function getStorageKey(videoId: string): string {
 }
 
 /**
+ * Check if extension context is still valid
+ */
+function isExtensionContextValid(): boolean {
+    try {
+        // If we can access chrome.runtime.id, the context is valid
+        return !!(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
+    } catch {
+        return false;
+    }
+}
+
+/**
  * Save video progress to chrome.storage.local
  */
 export async function saveProgress(
@@ -41,25 +53,30 @@ export async function saveProgress(
         lastUpdated: Date.now()
     };
 
-    return new Promise((resolve, reject) => {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    // Always save to localStorage as backup
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+        console.warn('[VideoTracker] Failed to save to localStorage:', e);
+    }
+
+    // Try chrome.storage if context is valid
+    if (isExtensionContextValid() && chrome.storage?.local) {
+        return new Promise((resolve) => {
             chrome.storage.local.set({ [key]: data }, () => {
                 if (chrome.runtime.lastError) {
-                    reject(chrome.runtime.lastError);
+                    // Context may have been invalidated during the call
+                    console.warn('[VideoTracker] Chrome storage save failed:', chrome.runtime.lastError.message);
+                    resolve(); // Don't reject, we have localStorage backup
                 } else {
                     resolve();
                 }
             });
-        } else {
-            // Fallback to localStorage for development
-            try {
-                localStorage.setItem(key, JSON.stringify(data));
-                resolve();
-            } catch (e) {
-                reject(e);
-            }
-        }
-    });
+        });
+    }
+
+    // If chrome.storage not available, we already saved to localStorage
+    return Promise.resolve();
 }
 
 /**
@@ -68,25 +85,30 @@ export async function saveProgress(
 export async function getProgress(videoId: string): Promise<VideoProgress | null> {
     const key = getStorageKey(videoId);
 
-    return new Promise((resolve, reject) => {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+    // Try chrome.storage first if context is valid
+    if (isExtensionContextValid() && chrome.storage?.local) {
+        return new Promise((resolve) => {
             chrome.storage.local.get([key], (result) => {
                 if (chrome.runtime.lastError) {
-                    reject(chrome.runtime.lastError);
+                    console.warn('[VideoTracker] Chrome storage get failed:', chrome.runtime.lastError.message);
+                    // Fallback to localStorage
+                    const data = localStorage.getItem(key);
+                    resolve(data ? JSON.parse(data) : null);
                 } else {
                     resolve(result[key] || null);
                 }
             });
-        } else {
-            // Fallback to localStorage for development
-            try {
-                const data = localStorage.getItem(key);
-                resolve(data ? JSON.parse(data) : null);
-            } catch (e) {
-                reject(e);
-            }
-        }
-    });
+        });
+    }
+
+    // Fallback to localStorage
+    try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : null;
+    } catch (e) {
+        console.warn('[VideoTracker] Failed to get from localStorage:', e);
+        return null;
+    }
 }
 
 /**

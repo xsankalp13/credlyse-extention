@@ -6,19 +6,27 @@
 const STORAGE_KEY = 'credlyse_auth_token';
 const USER_KEY = 'credlyse_user';
 
-// Check for auth tokens in localStorage and sync to extension storage
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let pollingInterval: any = null;
+let lastSyncedToken: string | null = null;
 
-function syncAuthToExtension() {
+function syncAuthToExtension(verbose = false) {
     // Check if extension context is valid
     if (!chrome.runtime?.id) {
-        if (pollingInterval) clearInterval(pollingInterval);
+        if (pollingInterval) {
+            clearInterval(pollingInterval);
+            pollingInterval = null;
+        }
         return;
     }
 
     const token = localStorage.getItem(STORAGE_KEY) || localStorage.getItem('access_token');
     const userStr = localStorage.getItem(USER_KEY);
+
+    // Skip if token hasn't changed (avoid spam)
+    if (token === lastSyncedToken && !verbose) {
+        return;
+    }
 
     if (token) {
         let user = null;
@@ -26,7 +34,7 @@ function syncAuthToExtension() {
             try {
                 user = JSON.parse(userStr);
             } catch (e) {
-                console.error('[Credlyse Extension] Failed to parse user data');
+                // Silently ignore parse errors
             }
         }
 
@@ -34,49 +42,54 @@ function syncAuthToExtension() {
         try {
             chrome.runtime.sendMessage({ type: 'SET_AUTH_TOKEN', token, user }, (response) => {
                 if (chrome.runtime.lastError) {
-                    // Suppress context invalidated error here too if it happens
                     if (chrome.runtime.lastError.message?.includes('context invalidated')) {
-                        if (pollingInterval) clearInterval(pollingInterval);
+                        if (pollingInterval) {
+                            clearInterval(pollingInterval);
+                            pollingInterval = null;
+                        }
                         return;
                     }
-                    console.error('[Credlyse Extension] Failed to sync token:', chrome.runtime.lastError.message);
-                } else if (response?.success) {
-                    console.log('[Credlyse Extension] Token synced successfully from dashboard');
+                } else if (response?.success && token !== lastSyncedToken) {
+                    console.log('[Credlyse Extension] ✅ Token synced from dashboard');
+                    lastSyncedToken = token;
                 }
             });
         } catch (e) {
-            console.warn('[Credlyse Extension] Context invalidated, stopping sync.');
-            if (pollingInterval) clearInterval(pollingInterval);
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+                pollingInterval = null;
+            }
         }
+    } else if (lastSyncedToken !== null) {
+        // Token was removed (logout)
+        console.log('[Credlyse Extension] Token removed, user logged out');
+        lastSyncedToken = null;
     }
 }
 
-// Listen for storage changes
+// Listen for storage changes (fires for cross-tab changes)
 window.addEventListener('storage', (event) => {
     if (event.key === STORAGE_KEY || event.key === 'access_token' || event.key === USER_KEY) {
-        console.log('[Credlyse Extension] Storage changed, syncing...');
-        syncAuthToExtension();
+        syncAuthToExtension(true);
     }
 });
 
-// Check periodically for token updates
+// Start polling
 function startPolling() {
-    syncAuthToExtension(); // Initial check
+    syncAuthToExtension(true); // Initial check with verbose
 
-    // Poll every 2 seconds
+    // Poll every 2 seconds (silent unless token changes)
     if (!pollingInterval) {
-        pollingInterval = setInterval(syncAuthToExtension, 2000);
+        pollingInterval = setInterval(() => syncAuthToExtension(false), 2000);
     }
 }
 
-// Also observe for access_token changes (what the dashboard actually uses)
+// Intercept localStorage.setItem for immediate sync on login
 const originalSetItem = localStorage.setItem.bind(localStorage);
 localStorage.setItem = function (key: string, value: string) {
     originalSetItem(key, value);
-    if (key === 'access_token' || key === STORAGE_KEY) {
-        console.log('[Credlyse Extension] Token set in localStorage, syncing...');
-        // Wait a bit for user data to be stored too
-        setTimeout(syncAuthToExtension, 500);
+    if (key === 'access_token' || key === STORAGE_KEY || key === USER_KEY) {
+        setTimeout(() => syncAuthToExtension(true), 500);
     }
 };
 
@@ -87,4 +100,4 @@ if (document.readyState === 'loading') {
     startPolling();
 }
 
-console.log('[Credlyse Extension] Dashboard content script loaded');
+console.log('[Credlyse Extension] Dashboard sync loaded');

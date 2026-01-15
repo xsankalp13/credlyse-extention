@@ -5,6 +5,7 @@
 
 import { saveProgress, getProgress } from './storageUtils';
 import { showToast } from './Toast';
+import { authenticatedFetch, getAuthState, checkPlaylistStatus } from '../auth/authService';
 
 const MAX_PLAYBACK_RATE = 2.0;
 const GAP_THRESHOLD = 1.0; // seconds - if gap > this, user skipped
@@ -23,6 +24,7 @@ export interface TrackerState {
 export class VideoTracker {
     private videoElement: HTMLVideoElement | null = null;
     private videoId: string;
+    private backendVideoId: number | null = null; // Database video ID for backend sync
     private duration: number = 0;
     private watchedSegments: [number, number][] = [];
     private lastRecordedTime: number = -1;
@@ -32,6 +34,7 @@ export class VideoTracker {
     private isComplete: boolean = false;
     private speedWarningShown: boolean = false;
     private isSpeedExceeded: boolean = false;
+    private backendSyncComplete: boolean = false; // Prevent duplicate sync calls
 
     // Bound event handlers for proper cleanup
     private boundHandleTimeUpdate: () => void;
@@ -81,6 +84,69 @@ export class VideoTracker {
 
         console.log(`[VideoTracker] Initialized for video: ${this.videoId}`);
         this.emitProgressUpdate();
+
+        // Resolve backend video ID and notify start (async, non-blocking)
+        this.resolveAndStartBackend();
+    }
+
+    /**
+     * Resolve YouTube video ID to backend video ID and call /progress/start
+     */
+    private async resolveAndStartBackend(): Promise<void> {
+        try {
+            // Check if user is authenticated
+            const authState = await getAuthState();
+            if (!authState.isAuthenticated) {
+                console.log('[VideoTracker] Not authenticated, skipping backend sync');
+                return;
+            }
+
+            // Get playlist ID from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const playlistId = urlParams.get('list');
+
+            if (!playlistId) {
+                console.log('[VideoTracker] No playlist ID in URL, skipping backend sync');
+                return;
+            }
+
+            // Get playlist status which includes video mapping
+            const playlistStatus = await checkPlaylistStatus(playlistId);
+
+            if (!playlistStatus || !playlistStatus.playlist_exists) {
+                console.log('[VideoTracker] Playlist not found in backend');
+                return;
+            }
+
+            // Find the video in the playlist
+            const video = playlistStatus.videos.find(
+                (v: { youtube_video_id: string; id: number }) => v.youtube_video_id === this.videoId
+            );
+
+            if (!video) {
+                console.log('[VideoTracker] Video not found in playlist');
+                return;
+            }
+
+            this.backendVideoId = video.id;
+            console.log(`[VideoTracker] Resolved backend video ID: ${this.backendVideoId}`);
+
+            // Call /progress/start to create enrollment and progress records
+            const response = await authenticatedFetch('/api/v1/progress/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_id: this.backendVideoId }),
+            });
+
+            if (response.ok) {
+                console.log('[VideoTracker] Successfully notified backend of video start');
+            } else {
+                console.warn('[VideoTracker] Failed to notify backend of video start:', response.status);
+            }
+        } catch (error) {
+            console.warn('[VideoTracker] Error during backend start sync:', error);
+            // Don't throw - continue with local-only tracking
+        }
     }
 
     /**
@@ -391,6 +457,44 @@ export class VideoTracker {
                 duration: 5000
             });
             this.emitProgressUpdate();
+
+            // Sync completion to backend (async, non-blocking)
+            this.syncCompletionToBackend();
+        }
+    }
+
+    /**
+     * Sync video completion to backend
+     */
+    private async syncCompletionToBackend(): Promise<void> {
+        // Prevent duplicate calls
+        if (this.backendSyncComplete) {
+            console.log('[VideoTracker] Already synced completion to backend');
+            return;
+        }
+
+        // Check if we have a backend video ID
+        if (!this.backendVideoId) {
+            console.log('[VideoTracker] No backend video ID, skipping completion sync');
+            return;
+        }
+
+        try {
+            const response = await authenticatedFetch('/api/v1/progress/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ video_id: this.backendVideoId }),
+            });
+
+            if (response.ok) {
+                this.backendSyncComplete = true;
+                console.log('[VideoTracker] Successfully synced completion to backend');
+            } else {
+                console.warn('[VideoTracker] Failed to sync completion to backend:', response.status);
+            }
+        } catch (error) {
+            console.warn('[VideoTracker] Error syncing completion to backend:', error);
+            // Don't throw - completion is already saved locally
         }
     }
 

@@ -68,16 +68,41 @@ export interface AuthState {
     token: string | null;
 }
 
+// Check if extension context is still valid
+function isExtensionContextValid(): boolean {
+    try {
+        return !!(typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id);
+    } catch {
+        return false;
+    }
+}
+
 // Get stored auth state from chrome storage
 export async function getAuthState(): Promise<AuthState> {
+    // If extension context is invalid, return unauthenticated
+    if (!isExtensionContextValid()) {
+        console.warn('[Credlyse] Extension context invalid, returning unauthenticated');
+        return { isAuthenticated: false, user: null, token: null };
+    }
+
     return new Promise((resolve) => {
-        chrome.storage.local.get(['access_token', 'user'], (result) => {
-            resolve({
-                isAuthenticated: !!result.access_token,
-                user: result.user || null,
-                token: result.access_token || null,
+        try {
+            chrome.storage.local.get(['access_token', 'user'], (result) => {
+                if (chrome.runtime.lastError) {
+                    console.warn('[Credlyse] Failed to get auth state:', chrome.runtime.lastError.message);
+                    resolve({ isAuthenticated: false, user: null, token: null });
+                } else {
+                    resolve({
+                        isAuthenticated: !!result.access_token,
+                        user: result.user || null,
+                        token: result.access_token || null,
+                    });
+                }
             });
-        });
+        } catch (e) {
+            console.warn('[Credlyse] Exception getting auth state:', e);
+            resolve({ isAuthenticated: false, user: null, token: null });
+        }
     });
 }
 
@@ -193,7 +218,7 @@ export async function validateToken(): Promise<boolean> {
 
 // Open dashboard app for login (external redirect)
 export function openDashboardLogin(): void {
-    chrome.tabs.create({ url: 'http://localhost:3001/login' });
+    chrome.tabs.create({ url: 'http://localhost:3000/login' });
 }
 
 // Listen for auth state changes (for UI updates)
@@ -221,6 +246,8 @@ export interface VideoInfo {
     title: string;
     has_quiz: boolean;
     order: number;
+    is_watched?: boolean;
+    is_quiz_passed?: boolean;
 }
 
 export interface PlaylistStatus {
@@ -250,28 +277,39 @@ export interface VideoQuiz {
  */
 export async function checkPlaylistStatus(youtubePlaylistId: string): Promise<PlaylistStatus | null> {
     try {
-        const response = await authenticatedFetch(
+        // Check if we have auth first
+        const { isAuthenticated } = await getAuthState();
+
+        if (isAuthenticated) {
+            try {
+                const response = await authenticatedFetch(
+                    `/api/v1/extension/playlist-status?youtube_playlist_id=${encodeURIComponent(youtubePlaylistId)}`
+                );
+
+                if (response.ok) {
+                    return await response.json();
+                }
+            } catch (e) {
+                // If auth fetch fails (e.g. token expired), fall back to public
+                // Don't log as error, just warn
+                // console.warn('[Credlyse] Auth fetch failed, trying public:', e);
+            }
+        }
+
+        // Public fetch (fallback or if not authenticated)
+        // This allows checking if the playlist exists even if logged out
+        const publicResponse = await proxyFetch(
             `/api/v1/extension/playlist-status?youtube_playlist_id=${encodeURIComponent(youtubePlaylistId)}`
         );
 
-        if (!response.ok) {
-            console.warn('[Credlyse] Playlist status check failed:', response.status, response.statusText);
-            // If unauthorized, try without auth (public)
-            const publicResponse = await proxyFetch(
-                `/api/v1/extension/playlist-status?youtube_playlist_id=${encodeURIComponent(youtubePlaylistId)}`
-            );
-            if (publicResponse.ok) {
-                return await publicResponse.json();
-            }
-            if (!publicResponse.ok) {
-                console.warn('[Credlyse] Public playlist status check failed:', publicResponse.status, publicResponse.statusText);
-            }
-            return null;
+        if (publicResponse.ok) {
+            return await publicResponse.json();
         }
 
-        return await response.json();
+        return null;
     } catch (error) {
-        console.error('[Credlyse] Failed to check playlist status:', error);
+        // Only log real network errors
+        console.warn('[Credlyse] Failed to check playlist status:', error);
         return null;
     }
 }
