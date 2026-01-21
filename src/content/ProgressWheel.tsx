@@ -11,25 +11,22 @@ export function ProgressWheel(): React.ReactElement {
             return;
         }
 
-        let totalItems = 0;
-        let completedItems = 0;
+        let totalQuizzes = 0;
+        let completedQuizzes = 0;
 
         status.videos.forEach(video => {
-            // Count video
-            totalItems++;
-            if (video.is_watched) completedItems++;
-
-            // Count quiz if exists
+            // Only count quizzes for progress
             if (video.has_quiz) {
-                totalItems++;
-                if (video.is_quiz_passed) completedItems++;
+                totalQuizzes++;
+                if (video.is_quiz_passed) completedQuizzes++;
             }
         });
 
-        if (totalItems > 0) {
-            setProgress(Math.round((completedItems / totalItems) * 100));
+        if (totalQuizzes > 0) {
+            setProgress(Math.round((completedQuizzes / totalQuizzes) * 100));
             setIsVisible(true);
         } else {
+            // No quizzes in this playlist, hide the wheel
             setIsVisible(false);
         }
     };
