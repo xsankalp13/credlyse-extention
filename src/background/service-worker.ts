@@ -84,6 +84,14 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
             return true;
         }
     }
+
+    // NEW: Logout handling
+    if (message.type === 'LOGOUT') {
+        chrome.storage.local.remove(['access_token', 'user'], () => {
+            sendResponse({ success: true });
+        });
+        return true;
+    }
 });
 
 async function handleSetAuthToken(token: string, user: any): Promise<void> {
@@ -128,18 +136,20 @@ async function validateToken(): Promise<boolean> {
 }
 
 // Periodic token validation (every 30 minutes)
-chrome.alarms.create('validateToken', { periodInMinutes: 30 });
+if (chrome.alarms) {
+    chrome.alarms.create('validateToken', { periodInMinutes: 30 });
 
-chrome.alarms.onAlarm.addListener(async (alarm) => {
-    if (alarm.name === 'validateToken') {
-        const isValid = await validateToken();
-        if (!isValid) {
-            // Token expired, clear auth state
-            chrome.storage.local.remove(['access_token', 'user']);
-            console.log('[Credlyse] Token expired, cleared auth state');
+    chrome.alarms.onAlarm.addListener(async (alarm) => {
+        if (alarm.name === 'validateToken') {
+            const isValid = await validateToken();
+            if (!isValid) {
+                // Token expired, clear auth state
+                chrome.storage.local.remove(['access_token', 'user']);
+                console.log('[Credlyse] Token expired, cleared auth state');
+            }
         }
-    }
-});
+    });
+}
 
 console.log('[Credlyse] Background service worker initialized');
 

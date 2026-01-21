@@ -94,6 +94,17 @@ localStorage.setItem = function (key: string, value: string) {
     }
 };
 
+// Add this immediately after the existing localStorage.setItem override
+
+const originalRemoveItem = localStorage.removeItem.bind(localStorage);
+localStorage.removeItem = function (key: string) {
+    originalRemoveItem(key);
+    if (key === 'access_token' || key === 'credlyse_auth_token' || key === 'credlyse_user') {
+        // Trigger sync immediately to handle logout
+        setTimeout(() => syncAuthToExtension(true), 50);
+    }
+};
+
 // Start when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startPolling);
