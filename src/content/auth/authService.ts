@@ -218,7 +218,7 @@ export async function validateToken(): Promise<boolean> {
 
 // Open dashboard app for login (external redirect)
 export function openDashboardLogin(): void {
-    chrome.tabs.create({ url: 'http://localhost:3000/login' });
+    chrome.tabs.create({ url: 'http://localhost:3001/login' });
 }
 
 // Listen for auth state changes (for UI updates)

@@ -63,6 +63,7 @@ function syncAuthToExtension(verbose = false) {
     } else if (lastSyncedToken !== null) {
         // Token was removed (logout)
         console.log('[Credlyse Extension] Token removed, user logged out');
+        chrome.runtime.sendMessage({ type: 'LOGOUT' });
         lastSyncedToken = null;
     }
 }
